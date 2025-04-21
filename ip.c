@@ -4,14 +4,23 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * return bit mask for target cidr.
+ */
 static inline unsigned int iap_mask_fast(int cidr) {
   return ~0U << (32 - cidr);
 }
 
+/**
+ * return ip address as unsigned integer
+ */
 static inline unsigned int iap_raw_fast(const iap_ip_t *a) {
   return (a->a[0] << 24) | (a->a[1] << 16) | (a->a[2] << 8) | a->a[3];
 }
 
+/**
+ * check contain address in subnet
+ */
 static inline int iap_in_fast(const iap_ip_t *net, const iap_ip_t *a) {
   return net->cidr <= a->cidr &&
          (iap_raw_fast(net) & iap_mask_fast(net->cidr)) ==
@@ -20,12 +29,22 @@ static inline int iap_in_fast(const iap_ip_t *net, const iap_ip_t *a) {
 
 static inline int max(int a, int b) { return a > b ? a : b; }
 
+/**
+ * Return AVL height of target node
+ */
 static inline int height(iap_ip_t *a) { return a ? a->h : 0; }
 
+/**
+ * Return AVL balance factor for target node
+ */
 static inline int bfactor(iap_ip_t *node) {
   return height(node->l) - height(node->r);
 }
 
+/**
+ * AVL rotate left operation for target node
+ * return new node
+ */
 static inline iap_ip_t *rotl(iap_ip_t *x) {
   iap_ip_t *y = x->r;
   iap_ip_t *T2 = y->l;
@@ -39,6 +58,10 @@ static inline iap_ip_t *rotl(iap_ip_t *x) {
   return y;
 }
 
+/**
+ * AVL rotate right operation for target node
+ * return new node
+ */
 static inline iap_ip_t *rotr(iap_ip_t *y) {
   iap_ip_t *x = y->l;
   iap_ip_t *T2 = x->r;
@@ -52,6 +75,10 @@ static inline iap_ip_t *rotr(iap_ip_t *y) {
   return x;
 }
 
+/**
+ * AVL balance target node
+ * return new node
+ */
 static iap_ip_t *balance(iap_ip_t *a) {
   int bfac;
 
@@ -76,6 +103,13 @@ static iap_ip_t *balance(iap_ip_t *a) {
   return a;
 }
 
+/**
+ * Compare ip nodes by address and subnets
+ * 127.0.0.1 == 127.0.0.0/24
+ * 127.0.0.0/24 == 127.0.0.1
+ * 127.0.0.1 > 127.0.0.0
+ * 0.0.0.0/0 == any address
+ */
 static inline int iap_key_cmp_fast(const iap_ip_t *a, const iap_ip_t *b) {
   unsigned int raw_a, raw_b, min_cidr;
   min_cidr = a->cidr > b->cidr ? b->cidr : a->cidr;
@@ -92,11 +126,17 @@ static inline int iap_key_cmp_fast(const iap_ip_t *a, const iap_ip_t *b) {
   return 0;
 }
 
+/**
+ * Strict compare two addresses:
+ * 127.0.0.1 == 127.0.0.1
+ * 127.0.0.0/31 < 127.0.0.0/30
+ * 127.0.0.0/31 == 127.0.0.0/31
+ */
 static inline int iap_key_cmp_strict_fast(const iap_ip_t *a,
                                           const iap_ip_t *b) {
   unsigned int raw_a, raw_b;
-  raw_a = iap_raw_fast(a) & a->cidr;
-  raw_b = iap_raw_fast(b) & b->cidr;
+  raw_a = iap_raw_fast(a);
+  raw_b = iap_raw_fast(b);
   if (raw_a > raw_b)
     return 1;
   else if (raw_a < raw_b)
@@ -108,6 +148,9 @@ static inline int iap_key_cmp_strict_fast(const iap_ip_t *a,
   return 0;
 }
 
+/**
+ * remove node from tree by address and cidr.
+ */
 static iap_ip_t *iap_remove_fast(iap_ip_t *r, const iap_ip_t *b) {
   int cmp;
 
@@ -144,6 +187,9 @@ static iap_ip_t *iap_remove_fast(iap_ip_t *r, const iap_ip_t *b) {
   return balance(r);
 }
 
+/**
+ * remove all nodes contain in target subnet
+ */
 static iap_ip_t *iap_prune_fast(iap_ip_t *a, const iap_ip_t *net) {
   iap_ip_t *t;
 
@@ -180,7 +226,10 @@ static iap_ip_t *iap_prune_fast(iap_ip_t *a, const iap_ip_t *net) {
   return balance(a);
 }
 
-iap_ip_t *iap_set_insert(iap_ip_t **r, const iap_ip_t *a) {
+/**
+ * Insert node in tree
+ */
+iap_ip_t *iap_insert(iap_ip_t **r, const iap_ip_t *a) {
   iap_ip_t **p;
   iap_ip_t **stack[256] = {0};
   int infloop_guard = 0;
@@ -215,7 +264,7 @@ _again:
     assert(infloop_guard == 0);
     infloop_guard = 1;
 
-    iap_prune(r, a);
+    *r = iap_prune_fast(*r, a);
     goto _again;
   }
 
@@ -242,7 +291,13 @@ _again:
   return t;
 }
 
+/**
+ * free tree
+ */
 static void iap_free_fast(iap_ip_t *a) {
+  if (!a)
+    return;
+
   if (a->l)
     iap_free_fast(a->l);
   if (a->r)
@@ -269,4 +324,36 @@ void iap_prune(iap_ip_t **r, const iap_ip_t *net) {
 void iap_free(iap_ip_t **r) {
   iap_free_fast(*r);
   *r = (void *)0;
+}
+
+iap_ip_t *iap_begin(iap_ip_t *r, iap_ctx_t *ctx) {
+  if (!r)
+    return NULL;
+
+  iap_ip_t *p = r;
+
+  while (p->l) {
+    ctx->sp++;
+    ctx->stack[ctx->sp] = p;
+    p = p->l;
+  }
+
+  // p now leftmost node
+
+  return ctx->stack[ctx->sp--];
+}
+
+iap_ip_t *iap_next(iap_ctx_t *ctx) {
+  if (ctx->sp < 0)
+    return NULL;
+
+  iap_ip_t *node = ctx->stack[ctx->sp--];
+  iap_ip_t *p = node->r;
+
+  while (p) {
+    ctx->stack[++ctx->sp] = p;
+    p = p->l;
+  }
+
+  return node;
 }

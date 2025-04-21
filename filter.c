@@ -1,12 +1,11 @@
-#include "invert.h"
-#include "ip.h"
+#include "filter.h"
 #include "ip-parse.h"
+#include "ip.h"
 #include "iptool.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 
-int cmd_invert_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
+int cmd_filter_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
                     FILE *out) {
   iap_ip_t *r = (void *)0;
   int rc;
@@ -23,11 +22,6 @@ int cmd_invert_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
       fprintf(stderr, "memory allocation error.\n");
     return EXIT_FAILURE;
   }
-
-  iap_ctx_t ctx = {0};
-  iap_ip_t *a;
-  for (a = iap_begin(r, &ctx); a; a = iap_next(&ctx))
-    ;
 
   iap_free(&r);
   return EXIT_SUCCESS;

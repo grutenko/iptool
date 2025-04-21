@@ -18,5 +18,6 @@
         "iptool.h": "c",
         "invert.h": "c",
         "stdio.h": "c"
-    }
+    },
+    "editor.tabSize": 2
 }

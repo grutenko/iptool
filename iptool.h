@@ -17,8 +17,8 @@ enum {
 
 struct cmd_in {
   int kind;
-  int inplace_in;
-  char **inplace;
+  int inplace_len;
+  const char **inplace;
   FILE *file;
 };
 

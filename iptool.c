@@ -1,5 +1,6 @@
 #include "iptool.h"
 #include "invert.h"
+#include "filter.h"
 #include "ip.h"
 
 #include <errno.h>
@@ -10,60 +11,104 @@
 
 struct command {
   const char *name;
+  const char *descr;
   cmd_proc_p proc;
-} commands[] = {{"invert", cmd_invert_proc}, {0, 0}};
+} commands[] = {{"invert", "Invert list of subnets.", cmd_invert_proc},
+                {"filter", "filter list of addresses by subnet.", cmd_filter_proc},
+                {0, 0}};
 
 static void help(FILE *o) {
-  printf("Usage:\n");
-  printf("  iptool <command> [options] [args]\n\n");
+  fprintf(o, "Usage:\n");
+  fprintf(o, "  iptool <command> [options] [args]\n\n");
 
-  printf("Commands:\n");
-  printf("  invert           Invert given subnet list (i.e., find address "
-         "ranges not covered)\n");
-  printf("  merge            Merge overlapping and adjacent subnets\n");
-  printf("  uniq             Remove duplicate IP addresses or subnets\n");
-  printf("  filter           Filter addresses by subnet\n");
-  printf("  sort             Sort IP addresses or networks\n\n");
+  fprintf(o, "Commands:\n");
+  fprintf(o, "  invert           Invert given subnet list (i.e., find address "
+             "ranges not covered)\n");
+  fprintf(o, "  merge            Merge overlapping and adjacent subnets\n");
+  fprintf(o, "  uniq             Remove duplicate IP addresses or subnets\n");
+  fprintf(o, "  filter           Filter addresses by subnet\n");
+  fprintf(o, "  sort             Sort IP addresses or networks\n\n");
 
-  printf("Arguments:\n");
-  printf("  [args]           List of IPs/subnets, file path, or '-' for "
-         "stdin\n\n");
+  fprintf(o, "Arguments:\n");
+  fprintf(o, "  [args]           List of IPs/subnets, file path, or '-' for "
+             "stdin\n\n");
 
-  printf("Options:\n");
-  printf("  --by <subnet>    Subnet used for filtering (only with 'filter')\n");
-  printf("  --help           Show this help message\n\n");
+  fprintf(o, "Options:\n");
+  fprintf(
+      o, "  --by <subnet>    Subnet used for filtering (only with 'filter')\n");
+  fprintf(o, "  --help           Show this help message\n\n");
 
-  printf("Examples:\n");
-  printf("  iptool invert iplist.txt\n");
-  printf("  iptool filter --by 192.168.0.0/16 - < input.txt\n");
-  printf("  iptool merge 1.1.1.0/24 1.1.2.0/24\n\n");
+  fprintf(o, "Examples:\n");
+  fprintf(o, "  iptool invert iplist.txt\n");
+  fprintf(o, "  iptool filter --by 192.168.0.0/16 - < input.txt\n");
+  fprintf(o, "  iptool merge 1.1.1.0/24 1.1.2.0/24\n\n");
 
-  printf("Note:\n");
-  printf("  All addresses must be in CIDR notation (e.g., 192.168.1.0/24).\n");
+  fprintf(o, "Note:\n");
+  fprintf(o,
+          "  All addresses must be in CIDR notation (e.g., 192.168.1.0/24).\n");
 }
 
 static void help_exit(int code, FILE *o) {
   help(o);
+  fflush(o);
   exit(code);
 }
 
-static void help_exit_fmt(int code, FILE *o, const char *format, ...) {}
+static void help_exit_fmt(int code, FILE *o, const char *format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  vfprintf(o, format, arg);
+  putc('\n', o);
+  putc('\n', o);
+  va_end(arg);
+  help_exit(code, o);
+}
 
-static void error(int code, const char *format, ...) {}
+static void error(int code, const char *format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  vfprintf(stderr, format, arg);
+  va_end(arg);
+  exit(code);
+}
 
-static int cmd_parse_option(int argc, const char **argv, struct cmd_opt *opt) {}
+static void list(FILE *o) {
+  int i;
+  for (i = 0; commands[i].name; i++) {
+    fprintf(o, "%s\t\t%s\n", commands[i].name, commands[i].descr);
+  }
+}
 
-static struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt) {}
+static int cmd_parse_option(int argc, const char **argv, struct cmd_opt *opt) {
+  return 0;
+}
+
+static struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt,
+                                const char *_short, const char *_long) {
+  int i;
+  for (i = 0; i < cmd_opt_i; i++) {
+    if ((opt[i].key_c == strlen(_short) &&
+         strncmp(opt[i].key, _short, opt[i].key_c) == 0) ||
+        (opt[i].key_c == strlen(_long) &&
+         strncmp(opt[i].key, _long, opt[i].key_c) == 0))
+      return &opt[i];
+  }
+  return (void *)0;
+}
 
 int main(int argc, const char **argv) {
-  if (argc == 1)
-    help_exit(EXIT_SUCCESS, stdout);
+  if (argc < 2)
+    help_exit(EXIT_SUCCESS, stderr);
 
   int i;
   struct cmd_opt cmd_opts[32];
   int cmd_opt_c = 0;
 
   for (i = 2; i < argc; i++) {
+
+    if (strlen(argv[i]) == 0 || argv[i][0] != '-')
+      break;
+
     if (!cmd_parse_option(argc - i, &(argv[i]), &cmd_opts[cmd_opt_c]))
       help_exit_fmt(EXIT_FAILURE, stderr, "Invalid option %s.\n", argv[i]);
 
@@ -71,7 +116,7 @@ int main(int argc, const char **argv) {
   }
 
   FILE *out = stdout;
-  struct cmd_opt *output = opt_find(cmd_opt_c, cmd_opts);
+  struct cmd_opt *output = opt_find(cmd_opt_c, cmd_opts, "o", "output");
 
   if (output) {
     char buf[256];
@@ -82,14 +127,55 @@ int main(int argc, const char **argv) {
       error(EXIT_FAILURE, "output file error: %s\n", strerror(errno));
   }
 
-  struct command *cmd;
+  struct cmd_in cmd_in;
+  i = cmd_opt_c + 2;
+
+  if (argc - i < 1) {
+    cmd_in.kind = CMD_IN_INPLACE;
+    cmd_in.inplace_len = 0;
+    cmd_in.inplace = (void *)0;
+  } else if (argc - i == 1) {
+    cmd_in.kind = CMD_IN_FILE;
+    if (strcmp(argv[i], "-") == 0)
+      // stdin
+      cmd_in.file = stdin;
+    else if (iap_ip_parse(argv[i], strlen(argv[i]), NULL)) {
+      cmd_in.inplace_len = 1;
+      cmd_in.inplace = &argv[i];
+      cmd_in.kind = CMD_IN_INPLACE;
+    } else {
+      cmd_in.file = fopen(argv[i], "r");
+      if (!cmd_in.file)
+        error(EXIT_FAILURE, "cannot open input file %s: %s.", argv[i],
+              strerror(errno));
+    }
+  } else {
+    cmd_in.kind = CMD_IN_INPLACE;
+    cmd_in.inplace_len = 0;
+
+    cmd_in.inplace = &argv[i];
+    for (; i < argc; i++) {
+      if (!iap_ip_parse(argv[i], strlen(argv[i]), NULL))
+        error(EXIT_FAILURE, "invalid address: %s.", argv[i]);
+
+      cmd_in.inplace_len++;
+    }
+  }
+
+  struct command *cmd = (void *)0;
   for (i = 0; commands[i].name; i++) {
     if (strcmp(commands[i].name, argv[1]) == 0) {
       cmd = &commands[i];
     }
   }
 
+  int rc = EXIT_SUCCESS;
 
+  if (cmd) {
+    rc = cmd->proc(cmd_opt_c, cmd_opts, &cmd_in, out);
+  } else {
+    help_exit_fmt(EXIT_FAILURE, stdout, "undefined command: %s.", argv[1]);
+  }
 
-  return EXIT_SUCCESS;
+  return rc;
 }

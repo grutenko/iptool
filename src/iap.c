@@ -1,7 +1,5 @@
 #include "iap.h"
-#include "filter.h"
-#include "inflate.h"
-#include "invert.h"
+#include "proc.h"
 #include "ip.h"
 
 #include <errno.h>

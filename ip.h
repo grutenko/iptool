@@ -13,13 +13,11 @@ typedef struct iap_ip {
   int h;
 } iap_ip_t;
 
-#define IAP_IP(a, b, c, d)                                                     \
-  {.a = {a, b, c, d}, .cidr = 32, .l = 0, .r = 0, .h = 0}
-
-typedef struct iap_ctx {
-  iap_ip_t *stack[256];
-  int sp;
-} iap_ctx_t;
+enum {
+  IAP_WALK_PREORDER = 0,
+  IAP_WALK_INORDER = 1,
+  IAP_WALK_POSTORDER = 2
+};
 
 unsigned int iap_raw(const iap_ip_t *a);
 unsigned int iap_mask(int cidr);
@@ -34,10 +32,9 @@ void iap_net_to(iap_ip_t *a, iap_ip_t *to);
 void iap_increment(iap_ip_t *a);
 int iap_ip_to_a(iap_ip_t *a, char *out);
 int iap_ip_parse_from_file(FILE *o, iap_ip_t **r);
-iap_ip_t *iap_begin(iap_ip_t *r, iap_ctx_t *ctx);
-iap_ip_t *iap_next(iap_ctx_t *ctx);
-int iap_ip_parse_from_file(FILE *o, iap_ip_t **r);
 int iap_ip_parse_from_str_list(int argc, const char **argv, iap_ip_t **r);
 const char *iap_ip_parse_last_error_str();
+void iap_walk(iap_ip_t *r, void(*proc)(iap_ip_t *a, int mode));
+void iap_print_tree(iap_ip_t *r, int offset);
 
 #endif

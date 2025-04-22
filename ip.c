@@ -340,39 +340,6 @@ void iap_free(iap_ip_t **r) {
   *r = (void *)0;
 }
 
-iap_ip_t *iap_begin(iap_ip_t *r, iap_ctx_t *ctx) {
-  if (!r)
-    return NULL;
-
-  iap_ip_t *p = r;
-
-  ctx->sp = -1;
-
-  while (p) {
-    ctx->stack[++ctx->sp] = p;
-    p = p->l;
-  }
-
-  // p now leftmost node
-
-  return ctx->stack[ctx->sp--];
-}
-
-iap_ip_t *iap_next(iap_ctx_t *ctx) {
-  if (ctx->sp < 0)
-    return NULL;
-
-  iap_ip_t *node = ctx->stack[ctx->sp];
-  iap_ip_t *p = node->r;
-
-  while (p) {
-    ctx->stack[++(ctx->sp)] = p;
-    p = p->l;
-  }
-
-  return ctx->stack[ctx->sp--];
-}
-
 void iap_increment(iap_ip_t *a) {
   unsigned int raw_a = iap_raw_fast(a) + 1;
   a->a[0] = (raw_a >> 24) & 0xff;
@@ -500,6 +467,11 @@ int iap_ip_parse(const char *str, int size, iap_ip_t *out) {
       return 0;
   }
 
+  if ((((a[0] << 24) | (a[1] << 16) | (a[2] << 8) | a[3]) &
+       iap_mask_fast(cidr)) !=
+      ((a[0] << 24) | (a[1] << 16) | (a[2] << 8) | a[3]))
+    return 0;
+
   if (out) {
     out->a[0] = a[0];
     out->a[1] = a[1];
@@ -591,3 +563,20 @@ _failure:
  * return string error for last list parsing
  */
 const char *iap_ip_parse_last_error_str() { return iap_parse_buffer; }
+
+void iap_walk(iap_ip_t *r, void (*proc)(iap_ip_t *a, int mode)) {
+  if (!r)
+    return;
+
+  proc(r, IAP_WALK_PREORDER);
+
+  if (r->l)
+    iap_walk(r->l, proc);
+
+  proc(r, IAP_WALK_INORDER);
+
+  if (r->r)
+    iap_walk(r->r, proc);
+
+  proc(r, IAP_WALK_POSTORDER);
+}

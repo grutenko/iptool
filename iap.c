@@ -16,6 +16,7 @@ struct command {
     {"invert", "Invert list of subnets.", cmd_invert_proc},
     {"filter", "filter list of addresses by subnet.", cmd_filter_proc},
     {"inflate", "inflate (expand list of subnets)", cmd_inflate_proc},
+    {"deflate", "deflate (find subnets)", cmd_deflate_proc},
     {0, 0}};
 
 static void help(FILE *o) {

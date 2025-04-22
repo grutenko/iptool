@@ -10,10 +10,7 @@ struct cmd_opt {
   char *value;
 };
 
-enum {
-  CMD_IN_INPLACE = 0,
-  CMD_IN_FILE = 1
-};
+enum { CMD_IN_INPLACE = 0, CMD_IN_FILE = 1 };
 
 struct cmd_in {
   int kind;
@@ -22,9 +19,13 @@ struct cmd_in {
   FILE *file;
 };
 
-typedef int (*cmd_proc_p)(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in, FILE *out);
+struct cmd_data {
+  int cmd_opt_c;
+  struct cmd_opt *cmd_opts;
+  struct cmd_in *in;
+  FILE *out;
+};
 
-struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt,
-  const char *_short, const char *_long);
+typedef int (*cmd_proc_p)(struct cmd_data *data);
 
 #endif

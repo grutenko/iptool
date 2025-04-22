@@ -2,27 +2,48 @@
 #include "ip.h"
 
 #include <stdlib.h>
+#include <string.h>
 
-int cmd_filter_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
-                    FILE *out) {
-  iap_ip_t *r = (void *)0;
+static struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt,
+                                const char *_short, const char *_long) {
+  int i;
+  for (i = 0; i < cmd_opt_i; i++) {
+    if ((_short && opt[i].key_c == strlen(_short) &&
+         strncmp(opt[i].key, _short, opt[i].key_c) == 0) ||
+        (_long && opt[i].key_c == strlen(_long) &&
+         strncmp(opt[i].key, _long, opt[i].key_c) == 0))
+      return &opt[i];
+  }
+  return (void *)0;
+}
+
+static iap_ip_t *parse_input(struct cmd_data *data) {
+  iap_ip_t *r = NULL;
   int rc;
-  if (in->kind == CMD_IN_FILE) {
-    rc = iap_ip_parse_from_file(in->file, &r);
-  } else if (in->kind == CMD_IN_INPLACE) {
-    rc = iap_ip_parse_from_str_list(in->inplace_len, in->inplace, &r);
+  if (data->in->kind == CMD_IN_FILE) {
+    rc = iap_ip_parse_from_file(data->in->file, &r);
+  } else if (data->in->kind == CMD_IN_INPLACE) {
+    rc = iap_ip_parse_from_str_list(data->in->inplace_len, data->in->inplace,
+                                    &r);
   }
 
   if (rc) {
     if (rc == 1)
-      fprintf(stderr, "filter: invalid input: %s",
+      fprintf(stderr, "invert: invalid input: %s",
               iap_ip_parse_last_error_str());
     else if (rc == 2)
-      fprintf(stderr, "filter: memory allocation error.\n");
-    return EXIT_FAILURE;
+      fprintf(stderr, "invert: memory allocation error.\n");
+    exit(EXIT_FAILURE);
   }
 
-  struct cmd_opt *opt = opt_find(cmd_opt_c, cmd_opts, NULL, "by");
+  return r;
+}
+
+int cmd_filter_proc(struct cmd_data *data) {
+  iap_ip_t *r = NULL;
+  r = parse_input(data);
+
+  struct cmd_opt *opt = opt_find(data->cmd_opt_c, data->cmd_opts, NULL, "by");
 
   if (!opt) {
     fprintf(stderr, "filter: --by is required.\n");
@@ -52,7 +73,7 @@ void inflate_walk_proc(iap_ip_t *a, int mode) {
     while (iap_raw(&i) <= raw_max) {
       len = iap_ip_to_a(&i, inflate_buffer);
       fwrite(inflate_buffer, len, 1, inflate_out);
-      fwrite(", ", 2, 1, inflate_out);
+      fwrite("\n", 1, 1, inflate_out);
       iap_increment(&i);
     }
     break;
@@ -61,75 +82,30 @@ void inflate_walk_proc(iap_ip_t *a, int mode) {
   }
 }
 
-int cmd_inflate_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
-                     FILE *out) {
-  iap_ip_t *r = (void *)0;
-  int rc;
-  if (in->kind == CMD_IN_FILE) {
-    rc = iap_ip_parse_from_file(in->file, &r);
-  } else if (in->kind == CMD_IN_INPLACE) {
-    rc = iap_ip_parse_from_str_list(in->inplace_len, in->inplace, &r);
-  }
+int cmd_inflate_proc(struct cmd_data *data) {
+  iap_ip_t *r = NULL;
+  r = parse_input(data);
 
-  if (rc) {
-    if (rc == 1)
-      fprintf(stderr, "inflate: invalid input: %s",
-              iap_ip_parse_last_error_str());
-    else if (rc == 2)
-      fprintf(stderr, "inflate: memory allocation error.\n");
-    return EXIT_FAILURE;
-  }
-
-  inflate_out = out;
+  inflate_out = data->out;
   iap_walk(r, inflate_walk_proc);
 
-  fflush(out);
+  fflush(data->out);
   iap_free(&r);
 
   return EXIT_SUCCESS;
 }
 
-int cmd_invert_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
-                    FILE *out) {
-  iap_ip_t *r = (void *)0;
-  int rc;
-  if (in->kind == CMD_IN_FILE) {
-    rc = iap_ip_parse_from_file(in->file, &r);
-  } else if (in->kind == CMD_IN_INPLACE) {
-    rc = iap_ip_parse_from_str_list(in->inplace_len, in->inplace, &r);
-  }
-
-  if (rc) {
-    if (rc == 1)
-      fprintf(stderr, "invert: invalid input: %s",
-              iap_ip_parse_last_error_str());
-    else if (rc == 2)
-      fprintf(stderr, "invert: memory allocation error.\n");
-    return EXIT_FAILURE;
-  }
+int cmd_invert_proc(struct cmd_data *data) {
+  iap_ip_t *r = NULL;
+  r = parse_input(data);
 
   iap_free(&r);
   return EXIT_SUCCESS;
 }
 
-void cmd_deflate_proc(int cmd_opt_c, struct cmd_opt *cmd_opts,
-                      struct cmd_in *in, FILE *out) {
-  iap_ip_t *r = (void *)0;
-  int rc;
-  if (in->kind == CMD_IN_FILE) {
-    rc = iap_ip_parse_from_file(in->file, &r);
-  } else if (in->kind == CMD_IN_INPLACE) {
-    rc = iap_ip_parse_from_str_list(in->inplace_len, in->inplace, &r);
-  }
-
-  if (rc) {
-    if (rc == 1)
-      fprintf(stderr, "invert: invalid input: %s",
-              iap_ip_parse_last_error_str());
-    else if (rc == 2)
-      fprintf(stderr, "invert: memory allocation error.\n");
-    return EXIT_FAILURE;
-  }
+int cmd_deflate_proc(struct cmd_data *data) {
+  iap_ip_t *r = NULL;
+  r = parse_input(data);
 
   iap_free(&r);
   return EXIT_SUCCESS;

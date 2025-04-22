@@ -1,6 +1,6 @@
 #include "iap.h"
-#include "proc.h"
 #include "ip.h"
+#include "proc.h"
 
 #include <errno.h>
 #include <stdarg.h>
@@ -85,8 +85,8 @@ static int cmd_parse_option(int argc, const char **argv, struct cmd_opt *opt) {
   return 0;
 }
 
-struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt, const char *_short,
-                         const char *_long) {
+static struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt,
+                                const char *_short, const char *_long) {
   int i;
   for (i = 0; i < cmd_opt_i; i++) {
     if ((_short && opt[i].key_c == strlen(_short) &&
@@ -173,8 +173,11 @@ int main(int argc, const char **argv) {
 
   int rc = EXIT_SUCCESS;
 
+  struct cmd_data data = {
+      .cmd_opt_c = cmd_opt_c, .cmd_opts = cmd_opts, .in = &cmd_in, .out = out};
+
   if (cmd) {
-    rc = cmd->proc(cmd_opt_c, cmd_opts, &cmd_in, out);
+    rc = cmd->proc(&data);
   } else {
     help_exit_fmt(EXIT_FAILURE, stdout, "undefined command: %s.", argv[1]);
   }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(iptool)
+project(iap)
 
-add_executable(iptool iptool.c ip.c ip-parse.c invert.c filter.c)
+add_executable(iap iap.c ip.c ip-parse.c ip-range.c inflate.c invert.c filter.c)

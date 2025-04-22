@@ -8,7 +8,7 @@
  * return bit mask for target cidr.
  */
 static inline unsigned int iap_mask_fast(int cidr) {
-  return ~0U << (32 - cidr);
+  return cidr > 0 ? ~0U << (32 - cidr) : 0U;
 }
 
 /**
@@ -119,10 +119,6 @@ static inline int iap_key_cmp_fast(const iap_ip_t *a, const iap_ip_t *b) {
     return 1;
   else if (raw_a < raw_b)
     return -1;
-  else if (a->cidr > b->cidr)
-    return -1;
-  else if (a->cidr < b->cidr)
-    return 1;
   return 0;
 }
 
@@ -291,6 +287,24 @@ _again:
   return t;
 }
 
+static inline void iap_net_from_fast(iap_ip_t *a, iap_ip_t *from) {
+  unsigned int raw_a = iap_raw_fast(a) & iap_mask_fast(a->cidr);
+  from->a[0] = (raw_a >> 24) & 0xff;
+  from->a[1] = (raw_a >> 16) & 0xff;
+  from->a[2] = (raw_a >> 8) & 0xff;
+  from->a[3] = raw_a & 0xff;
+  from->cidr = 32;
+}
+
+static inline void iap_net_to_fast(iap_ip_t *a, iap_ip_t *to) {
+  unsigned int raw_a = iap_raw_fast(a) | ~iap_mask_fast(a->cidr);
+  to->a[0] = (raw_a >> 24) & 0xff;
+  to->a[1] = (raw_a >> 16) & 0xff;
+  to->a[2] = (raw_a >> 8) & 0xff;
+  to->a[3] = raw_a & 0xff;
+  to->cidr = 32;
+}
+
 /**
  * free tree
  */
@@ -332,11 +346,13 @@ iap_ip_t *iap_begin(iap_ip_t *r, iap_ctx_t *ctx) {
 
   iap_ip_t *p = r;
 
-  while (p->l) {
-    ctx->sp++;
+  while (p) {
     ctx->stack[ctx->sp] = p;
+    ctx->sp++;
     p = p->l;
   }
+
+  ctx->sp--;
 
   // p now leftmost node
 
@@ -347,13 +363,86 @@ iap_ip_t *iap_next(iap_ctx_t *ctx) {
   if (ctx->sp < 0)
     return NULL;
 
-  iap_ip_t *node = ctx->stack[ctx->sp--];
+  iap_ip_t *node = ctx->stack[ctx->sp];
   iap_ip_t *p = node->r;
 
   while (p) {
-    ctx->stack[++ctx->sp] = p;
+    ctx->sp++;
+    ctx->stack[ctx->sp] = p;
     p = p->l;
   }
 
+  ctx->sp--;
+
   return node;
 }
+
+void iap_increment(iap_ip_t *a) {
+  unsigned int raw_a = iap_raw_fast(a) + 1;
+  a->a[0] = (raw_a >> 24) & 0xff;
+  a->a[1] = (raw_a >> 16) & 0xff;
+  a->a[2] = (raw_a >> 8) & 0xff;
+  a->a[3] = raw_a & 0xff;
+}
+
+void iap_net_from(iap_ip_t *a, iap_ip_t *from) { iap_net_from_fast(a, from); }
+
+void iap_net_to(iap_ip_t *a, iap_ip_t *to) { iap_net_to_fast(a, to); }
+
+static char *u8tab[] = {
+    "0",   "1",   "2",   "3",   "4",   "5",   "6",   "7",   "8",   "9",   "10",
+    "11",  "12",  "13",  "14",  "15",  "16",  "17",  "18",  "19",  "20",  "21",
+    "22",  "23",  "24",  "25",  "26",  "27",  "28",  "29",  "30",  "31",  "32",
+    "33",  "34",  "35",  "36",  "37",  "38",  "39",  "40",  "41",  "42",  "43",
+    "44",  "45",  "46",  "47",  "48",  "49",  "50",  "51",  "52",  "53",  "54",
+    "55",  "56",  "57",  "58",  "59",  "60",  "61",  "62",  "63",  "64",  "65",
+    "66",  "67",  "68",  "69",  "70",  "71",  "72",  "73",  "74",  "75",  "76",
+    "77",  "78",  "79",  "80",  "81",  "82",  "83",  "84",  "85",  "86",  "87",
+    "88",  "89",  "90",  "91",  "92",  "93",  "94",  "95",  "96",  "97",  "98",
+    "99",  "100", "101", "102", "103", "104", "105", "106", "107", "108", "109",
+    "110", "111", "112", "113", "114", "115", "116", "117", "118", "119", "120",
+    "121", "122", "123", "124", "125", "126", "127", "128", "129", "130", "131",
+    "132", "133", "134", "135", "136", "137", "138", "139", "140", "141", "142",
+    "143", "144", "145", "146", "147", "148", "149", "150", "151", "152", "153",
+    "154", "155", "156", "157", "158", "159", "160", "161", "162", "163", "164",
+    "165", "166", "167", "168", "169", "170", "171", "172", "173", "174", "175",
+    "176", "177", "178", "179", "180", "181", "182", "183", "184", "185", "186",
+    "187", "188", "189", "190", "191", "192", "193", "194", "195", "196", "197",
+    "198", "199", "200", "201", "202", "203", "204", "205", "206", "207", "208",
+    "209", "210", "211", "212", "213", "214", "215", "216", "217", "218", "219",
+    "220", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230",
+    "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241",
+    "242", "243", "244", "245", "246", "247", "248", "249", "250", "251", "252",
+    "253", "254", "255"};
+
+static inline int u8toa(unsigned char v, char *out) {
+  const char *s = u8tab[v];
+  int i = 0;
+
+  while ((out[i] = s[i]))
+    i++;
+
+  return i;
+}
+
+static inline int iap_ip_to_a_fast(iap_ip_t *a, char *out) {
+  char *p = out;
+
+  // clang-format off
+  p += u8toa(a->a[0], p); *p = '.'; p++;
+  p += u8toa(a->a[1], p); *p = '.'; p++;
+  p += u8toa(a->a[2], p); *p = '.'; p++;
+  p += u8toa(a->a[3], p);
+
+  if(a->cidr != 32) {
+    *p = '/'; p++;
+    p += u8toa(a->cidr, p);
+  }
+  // clang-format on
+
+  *p = '\0';
+
+  return p - out;
+}
+
+int iap_ip_to_a(iap_ip_t *a, char *out) { return iap_ip_to_a_fast(a, out); }

@@ -1,7 +1,9 @@
 #include "filter.h"
-#include "ip-parse.h"
 #include "ip.h"
-#include "iptool.h"
+#include "ip-parse.h"
+#include "ip-range.h"
+#include "iap.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -17,11 +19,20 @@ int cmd_filter_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
 
   if (rc) {
     if (rc == 1)
-      fprintf(stderr, "invalid input: %s", iap_ip_parse_last_error_str());
+      fprintf(stderr, "filter: invalid input: %s", iap_ip_parse_last_error_str());
     else if (rc == 2)
-      fprintf(stderr, "memory allocation error.\n");
+      fprintf(stderr, "filter: memory allocation error.\n");
     return EXIT_FAILURE;
   }
+
+  struct cmd_opt *opt = opt_find(cmd_opt_c, cmd_opts, NULL, "by");
+
+  if(!opt) {
+    fprintf(stderr, "filter: --by is required.\n");
+    return EXIT_FAILURE;
+  }
+
+  
 
   iap_free(&r);
   return EXIT_SUCCESS;

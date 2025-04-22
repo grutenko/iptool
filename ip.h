@@ -24,9 +24,13 @@ void iap_prune(iap_ip_t **r, const iap_ip_t *net);
 void iap_remove(iap_ip_t **r, const iap_ip_t *a);
 void iap_free(iap_ip_t **r);
 int iap_ip_parse(const char *str, int size, iap_ip_t *a);
+void iap_net_from(iap_ip_t *a, iap_ip_t *from);
+void iap_net_to(iap_ip_t *a, iap_ip_t *to);
+void iap_increment(iap_ip_t *a);
+int iap_ip_to_a(iap_ip_t *a, char *out);
 
 typedef struct iap_ctx {
-  struct iap_ip_t *stack[256];
+  iap_ip_t *stack[256];
   int sp;
 } iap_ctx_t;
 

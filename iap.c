@@ -1,6 +1,7 @@
-#include "iptool.h"
-#include "invert.h"
+#include "iap.h"
 #include "filter.h"
+#include "inflate.h"
+#include "invert.h"
 #include "ip.h"
 
 #include <errno.h>
@@ -13,9 +14,11 @@ struct command {
   const char *name;
   const char *descr;
   cmd_proc_p proc;
-} commands[] = {{"invert", "Invert list of subnets.", cmd_invert_proc},
-                {"filter", "filter list of addresses by subnet.", cmd_filter_proc},
-                {0, 0}};
+} commands[] = {
+    {"invert", "Invert list of subnets.", cmd_invert_proc},
+    {"filter", "filter list of addresses by subnet.", cmd_filter_proc},
+    {"inflate", "inflate (expand list of subnets)", cmd_inflate_proc},
+    {0, 0}};
 
 static void help(FILE *o) {
   fprintf(o, "Usage:\n");
@@ -83,13 +86,13 @@ static int cmd_parse_option(int argc, const char **argv, struct cmd_opt *opt) {
   return 0;
 }
 
-static struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt,
-                                const char *_short, const char *_long) {
+struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt, const char *_short,
+                         const char *_long) {
   int i;
   for (i = 0; i < cmd_opt_i; i++) {
-    if ((opt[i].key_c == strlen(_short) &&
+    if ((_short && opt[i].key_c == strlen(_short) &&
          strncmp(opt[i].key, _short, opt[i].key_c) == 0) ||
-        (opt[i].key_c == strlen(_long) &&
+        (_long && opt[i].key_c == strlen(_long) &&
          strncmp(opt[i].key, _long, opt[i].key_c) == 0))
       return &opt[i];
   }
@@ -106,7 +109,7 @@ int main(int argc, const char **argv) {
 
   for (i = 2; i < argc; i++) {
 
-    if (strlen(argv[i]) == 0 || argv[i][0] != '-')
+    if (argv[i][0] != '-' || (strlen(argv[i]) == 1 && argv[i][0] == '-'))
       break;
 
     if (!cmd_parse_option(argc - i, &(argv[i]), &cmd_opts[cmd_opt_c]))

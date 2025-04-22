@@ -1,7 +1,7 @@
 #include "invert.h"
 #include "ip.h"
 #include "ip-parse.h"
-#include "iptool.h"
+#include "iap.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,9 +18,9 @@ int cmd_invert_proc(int cmd_opt_c, struct cmd_opt *cmd_opts, struct cmd_in *in,
 
   if (rc) {
     if (rc == 1)
-      fprintf(stderr, "invalid input: %s", iap_ip_parse_last_error_str());
+      fprintf(stderr, "invert: invalid input: %s", iap_ip_parse_last_error_str());
     else if (rc == 2)
-      fprintf(stderr, "memory allocation error.\n");
+      fprintf(stderr, "invert: memory allocation error.\n");
     return EXIT_FAILURE;
   }
 

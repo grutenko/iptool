@@ -17,7 +17,10 @@
         "complex": "c",
         "iptool.h": "c",
         "invert.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "deflate.h": "c",
+        "iap.h": "c"
     },
     "editor.tabSize": 2
 }

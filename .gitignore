@@ -83,3 +83,5 @@ CMakeUserPresets.json
 
 .cache
 build
+html
+latex

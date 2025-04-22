@@ -14,17 +14,18 @@ static inline unsigned int iap_mask_fast(int cidr) {
 /**
  * return ip address as unsigned integer
  */
-static inline unsigned int iap_raw_fast(const iap_ip_t *a) {
-  return (a->a[0] << 24) | (a->a[1] << 16) | (a->a[2] << 8) | a->a[3];
+static inline unsigned int iap_raw_fast(const iap_t *addr) {
+  return (addr->a[0] << 24) | (addr->a[1] << 16) | (addr->a[2] << 8) |
+         addr->a[3];
 }
 
 /**
  * check contain address in subnet
  */
-static inline int iap_in_fast(const iap_ip_t *net, const iap_ip_t *a) {
-  return net->cidr <= a->cidr &&
+static inline int iap_in_fast(const iap_t *net, const iap_t *addr) {
+  return net->cidr <= addr->cidr &&
          (iap_raw_fast(net) & iap_mask_fast(net->cidr)) ==
-             (iap_raw_fast(a) & iap_mask_fast(net->cidr));
+             (iap_raw_fast(addr) & iap_mask_fast(net->cidr));
 }
 
 static inline int max(int a, int b) { return a > b ? a : b; }
@@ -32,12 +33,12 @@ static inline int max(int a, int b) { return a > b ? a : b; }
 /**
  * Return AVL height of target node
  */
-static inline int height(iap_ip_t *a) { return a ? a->h : 0; }
+static inline int height(iap_t *node) { return node ? node->h : 0; }
 
 /**
  * Return AVL balance factor for target node
  */
-static inline int bfactor(iap_ip_t *node) {
+static inline int bfactor(iap_t *node) {
   return height(node->l) - height(node->r);
 }
 
@@ -45,9 +46,9 @@ static inline int bfactor(iap_ip_t *node) {
  * AVL rotate left operation for target node
  * return new node
  */
-static inline iap_ip_t *rotl(iap_ip_t *x) {
-  iap_ip_t *y = x->r;
-  iap_ip_t *T2 = y->l;
+static inline iap_t *rotl(iap_t *x) {
+  iap_t *y = x->r;
+  iap_t *T2 = y->l;
 
   y->l = x;
   x->r = T2;
@@ -62,9 +63,9 @@ static inline iap_ip_t *rotl(iap_ip_t *x) {
  * AVL rotate right operation for target node
  * return new node
  */
-static inline iap_ip_t *rotr(iap_ip_t *y) {
-  iap_ip_t *x = y->l;
-  iap_ip_t *T2 = x->r;
+static inline iap_t *rotr(iap_t *y) {
+  iap_t *x = y->l;
+  iap_t *T2 = x->r;
 
   x->r = y;
   y->l = T2;
@@ -79,28 +80,28 @@ static inline iap_ip_t *rotr(iap_ip_t *y) {
  * AVL balance target node
  * return new node
  */
-static iap_ip_t *balance(iap_ip_t *a) {
+static iap_t *balance(iap_t *node) {
   int bfac;
 
-  if (!a)
+  if (!node)
     return NULL;
 
-  bfac = bfactor(a);
+  bfac = bfactor(node);
 
   if (bfac > 1) {
-    if (bfactor(a->l) < 0)
-      a->l = rotl(a->l);
+    if (bfactor(node->l) < 0)
+      node->l = rotl(node->l);
 
-    return rotr(a);
+    return rotr(node);
   }
   if (bfac < -1) {
-    if (bfactor(a->r) > 0)
-      a->r = rotr(a->r);
+    if (bfactor(node->r) > 0)
+      node->r = rotr(node->r);
 
-    return rotl(a);
+    return rotl(node);
   }
 
-  return a;
+  return node;
 }
 
 /**
@@ -110,7 +111,7 @@ static iap_ip_t *balance(iap_ip_t *a) {
  * 127.0.0.1 > 127.0.0.0
  * 0.0.0.0/0 == any address
  */
-static inline int iap_key_cmp_fast(const iap_ip_t *a, const iap_ip_t *b) {
+static inline int iap_key_cmp_fast(const iap_t *a, const iap_t *b) {
   unsigned int raw_a, raw_b, min_cidr;
   min_cidr = a->cidr > b->cidr ? b->cidr : a->cidr;
   raw_a = iap_raw_fast(a) & iap_mask_fast(min_cidr);
@@ -128,8 +129,7 @@ static inline int iap_key_cmp_fast(const iap_ip_t *a, const iap_ip_t *b) {
  * 127.0.0.0/31 < 127.0.0.0/30
  * 127.0.0.0/31 == 127.0.0.0/31
  */
-static inline int iap_key_cmp_strict_fast(const iap_ip_t *a,
-                                          const iap_ip_t *b) {
+static inline int iap_key_cmp_strict_fast(const iap_t *a, const iap_t *b) {
   unsigned int raw_a, raw_b;
   raw_a = iap_raw_fast(a);
   raw_b = iap_raw_fast(b);
@@ -147,100 +147,100 @@ static inline int iap_key_cmp_strict_fast(const iap_ip_t *a,
 /**
  * remove node from tree by address and cidr.
  */
-static iap_ip_t *iap_remove_fast(iap_ip_t *r, const iap_ip_t *b) {
+static iap_t *iap_remove_fast(iap_t *root, const iap_t *addr) {
   int cmp;
 
-  if (!r)
+  if (!root)
     return (void *)0;
 
-  cmp = iap_key_cmp_strict_fast(r, b);
+  cmp = iap_key_cmp_strict_fast(root, addr);
   if (cmp > 0)
-    r->r = iap_remove_fast(r->r, b);
+    root->r = iap_remove_fast(root->r, addr);
   else if (cmp < 0)
-    r->l = iap_remove_fast(r->l, b);
+    root->l = iap_remove_fast(root->l, addr);
   else {
-    iap_ip_t *t = r;
+    iap_t *t = root;
 
-    if (!r->l)
-      r = r->r;
-    else if (!r->r)
-      r = r->l;
+    if (!root->l)
+      root = root->r;
+    else if (!root->r)
+      root = root->l;
     else {
-      iap_ip_t *p = r->r;
+      iap_t *p = root->r;
 
       while (p->l)
         p = p->l;
 
-      memmove(r, p, sizeof(iap_ip_t));
+      memmove(root, p, sizeof(iap_t));
 
-      r->r = iap_remove_fast(r->r, p);
+      root->r = iap_remove_fast(root->r, p);
       t = (void *)0;
     }
 
     free(t);
   }
 
-  return balance(r);
+  return balance(root);
 }
 
 /**
  * remove all nodes contain in target subnet
  */
-static iap_ip_t *iap_prune_fast(iap_ip_t *a, const iap_ip_t *net) {
-  iap_ip_t *t;
+static iap_t *iap_prune_fast(iap_t *root, const iap_t *net) {
+  iap_t *t;
 
-  if (!a)
+  if (!root)
     return (void *)0;
 
-  if (a->l)
-    a->l = iap_prune_fast(a->l, net);
-  if (a->r)
-    a->r = iap_prune_fast(a->r, net);
+  if (root->l)
+    root->l = iap_prune_fast(root->l, net);
+  if (root->r)
+    root->r = iap_prune_fast(root->r, net);
 
-  if (iap_in_fast(net, a)) {
-    t = a;
+  if (iap_in_fast(net, root)) {
+    t = root;
 
-    if (!a->l)
-      a = a->r;
-    else if (!a->r)
-      a = a->l;
+    if (!root->l)
+      root = root->r;
+    else if (!root->r)
+      root = root->l;
     else {
-      iap_ip_t *p = a->r;
+      iap_t *p = root->r;
 
       while (p->l)
         p = p->l;
 
-      memmove(a, p, sizeof(iap_ip_t));
+      memmove(root, p, sizeof(iap_t));
 
-      a->r = iap_remove_fast(a->r, p);
+      root->r = iap_remove_fast(root->r, p);
       t = (void *)0;
     }
 
     free(t);
   }
 
-  return balance(a);
+  return balance(root);
 }
 
 /**
  * Insert node in tree
  */
-iap_ip_t *iap_insert(iap_ip_t **r, const iap_ip_t *a) {
-  iap_ip_t **p;
-  iap_ip_t **stack[256] = {0};
+iap_t *iap_insert(iap_t **root, const iap_t *new) {
+  iap_t **p;
+  iap_t **stack[256] = {0};
   int infloop_guard = 0;
   int sp;
 
 _again:
 
   sp = 0;
-  p = r;
+  p = root;
   stack[sp++] = p;
 
   // find box for new node, or equal node if exist
   while (*p) {
     int cmp;
-    cmp = iap_key_cmp_fast(*p, a);
+    cmp = iap_key_cmp_fast(*p, new);
 
     if (cmp < 0)
       p = &((*p)->r);
@@ -254,25 +254,25 @@ _again:
 
   // if target node already exists - return this
   if (*p) {
-    if ((*p)->cidr <= a->cidr)
+    if ((*p)->cidr <= new->cidr)
       return *p;
 
     assert(infloop_guard == 0);
     infloop_guard = 1;
 
-    *r = iap_prune_fast(*r, a);
+    *root = iap_prune_fast(*root, new);
     goto _again;
   }
 
   // p now is &(parent_node->[left|right])
 
-  iap_ip_t *t;
-  t = malloc(sizeof(iap_ip_t));
+  iap_t *t;
+  t = malloc(sizeof(iap_t));
 
   if (!t)
     return 0;
 
-  memmove(t, a, sizeof(iap_ip_t));
+  memmove(t, new, sizeof(iap_t));
   t->h = 1;
   t->l = 0;
   t->r = 0;
@@ -287,70 +287,69 @@ _again:
   return t;
 }
 
-static inline void iap_net_from_fast(iap_ip_t *a, iap_ip_t *from) {
-  unsigned int raw_a = iap_raw_fast(a) & iap_mask_fast(a->cidr);
-  from->a[0] = (raw_a >> 24) & 0xff;
-  from->a[1] = (raw_a >> 16) & 0xff;
-  from->a[2] = (raw_a >> 8) & 0xff;
-  from->a[3] = raw_a & 0xff;
-  from->cidr = 32;
+static inline void iap_from_fast(const iap_t *net, iap_t *out) {
+  unsigned int raw_a = iap_raw_fast(net) & iap_mask_fast(net->cidr);
+  out->a[0] = (raw_a >> 24) & 0xff;
+  out->a[1] = (raw_a >> 16) & 0xff;
+  out->a[2] = (raw_a >> 8) & 0xff;
+  out->a[3] = raw_a & 0xff;
+  out->cidr = 32;
 }
 
-static inline void iap_net_to_fast(iap_ip_t *a, iap_ip_t *to) {
-  unsigned int raw_a = iap_raw_fast(a) | ~iap_mask_fast(a->cidr);
-  to->a[0] = (raw_a >> 24) & 0xff;
-  to->a[1] = (raw_a >> 16) & 0xff;
-  to->a[2] = (raw_a >> 8) & 0xff;
-  to->a[3] = raw_a & 0xff;
-  to->cidr = 32;
+static inline void iap_to_fast(const iap_t *net, iap_t *out) {
+  unsigned int raw_a = iap_raw_fast(net) | ~iap_mask_fast(net->cidr);
+  out->a[0] = (raw_a >> 24) & 0xff;
+  out->a[1] = (raw_a >> 16) & 0xff;
+  out->a[2] = (raw_a >> 8) & 0xff;
+  out->a[3] = raw_a & 0xff;
+  out->cidr = 32;
 }
 
 /**
  * free tree
  */
-static void iap_free_fast(iap_ip_t *a) {
-  if (!a)
+static void iap_free_fast(iap_t *root) {
+  if (!root)
     return;
 
-  if (a->l)
-    iap_free_fast(a->l);
-  if (a->r)
-    iap_free_fast(a->r);
-  free(a);
+  if (root->l)
+    iap_free_fast(root->l);
+  if (root->r)
+    iap_free_fast(root->r);
+
+  free(root);
 }
 
-unsigned int iap_raw(const iap_ip_t *a) { return iap_raw_fast(a); }
+unsigned int iap_raw(const iap_t *addr) { return iap_raw_fast(addr); }
 
 unsigned int iap_mask(int cidr) { return iap_mask_fast(cidr); }
 
-int iap_in(const iap_ip_t *net, const iap_ip_t *a) {
-  return iap_in_fast(net, a);
+int iap_in(const iap_t *net, const iap_t *a) { return iap_in_fast(net, a); }
+
+void iap_remove(iap_t **root, const iap_t *a) {
+  *root = iap_remove_fast(*root, a);
 }
 
-void iap_remove(iap_ip_t **r, const iap_ip_t *a) {
-  *r = iap_remove_fast(*r, a);
+void iap_prune(iap_t **root, const iap_t *net) {
+  *root = iap_prune_fast(*root, net);
 }
 
-void iap_prune(iap_ip_t **r, const iap_ip_t *net) {
-  *r = iap_prune_fast(*r, net);
+void iap_free(iap_t **root) {
+  iap_free_fast(*root);
+  *root = (void *)0;
 }
 
-void iap_free(iap_ip_t **r) {
-  iap_free_fast(*r);
-  *r = (void *)0;
+void iap_inc(iap_t *net) {
+  unsigned int raw_a = iap_raw_fast(net) + 1;
+  net->a[0] = (raw_a >> 24) & 0xff;
+  net->a[1] = (raw_a >> 16) & 0xff;
+  net->a[2] = (raw_a >> 8) & 0xff;
+  net->a[3] = raw_a & 0xff;
 }
 
-void iap_increment(iap_ip_t *a) {
-  unsigned int raw_a = iap_raw_fast(a) + 1;
-  a->a[0] = (raw_a >> 24) & 0xff;
-  a->a[1] = (raw_a >> 16) & 0xff;
-  a->a[2] = (raw_a >> 8) & 0xff;
-  a->a[3] = raw_a & 0xff;
-}
+void iap_from(const iap_t *net, iap_t *from) { iap_from_fast(net, from); }
 
-void iap_net_from(iap_ip_t *a, iap_ip_t *from) { iap_net_from_fast(a, from); }
-
-void iap_net_to(iap_ip_t *a, iap_ip_t *to) { iap_net_to_fast(a, to); }
+void iap_to(const iap_t *net, iap_t *to) { iap_to_fast(net, to); }
 
 static char *u8tab[] = {
     "0",   "1",   "2",   "3",   "4",   "5",   "6",   "7",   "8",   "9",   "10",
@@ -388,7 +387,7 @@ static inline int u8toa(unsigned char v, char *out) {
   return i;
 }
 
-static inline int iap_ip_to_a_fast(iap_ip_t *a, char *out) {
+static inline int iap_ntoa_fast(const iap_t *a, char *out) {
   char *p = out;
 
   // clang-format off
@@ -408,18 +407,12 @@ static inline int iap_ip_to_a_fast(iap_ip_t *a, char *out) {
   return p - out;
 }
 
-int iap_ip_to_a(iap_ip_t *a, char *out) { return iap_ip_to_a_fast(a, out); }
-
-/**
- * static buffer for string error of iap_ip_parse_from_file(),
- * iap_ip_parse_from_ip_list()
- */
-static char iap_parse_buffer[256] = {0};
+int iap_ntoa(const iap_t *addr, char *out) { return iap_ntoa_fast(addr, out); }
 
 /**
  * parse string impl of ip address
  */
-int iap_ip_parse(const char *str, int size, iap_ip_t *out) {
+int iap_aton(const char *str, int size, iap_t *out) {
   const char *p = str;
   unsigned int a[4] = {0, 0, 0, 0}, cidr = 32;
   int digit = 0, part = 0;
@@ -483,100 +476,23 @@ int iap_ip_parse(const char *str, int size, iap_ip_t *out) {
   return p - str;
 }
 
-/**
- * parse list of ip addresses from file into tree
- */
-int iap_ip_parse_from_file(FILE *o, iap_ip_t **r) {
-  char buffer[IAP_BEST_LEN + 1], *buffer_p = buffer;
-  int c = getc(o);
-  iap_ip_t a = {0};
-  int rc;
-
-  while (c != EOF) {
-    if ((c >= '0' && c <= '9') || c == '.' || c == '/') {
-      if (buffer_p - buffer >= IAP_BEST_LEN)
-        goto _failure;
-
-      *buffer_p++ = c;
-      *buffer_p = '\0';
-    } else if (c == ' ' || c == '\n' || c == ',') {
-      if (buffer_p - buffer > 0) {
-        rc = iap_ip_parse(buffer, buffer_p - buffer, &a);
-
-        if (!rc)
-          goto _failure;
-
-        if (!iap_insert(r, &a))
-          goto _mem_failure;
-
-        buffer_p = buffer;
-      }
-    } else {
-      goto _failure_inv_char;
-    }
-    c = getc(o);
-  }
-
-  return 0;
-_mem_failure:
-  iap_free(r);
-  return 2;
-_failure:
-  snprintf(iap_parse_buffer, 255, "invalid input: %s\n", buffer);
-  iap_free(r);
-  return 1;
-_failure_inv_char:
-  snprintf(iap_parse_buffer, 255, "invalid character %c.\n", c);
-  iap_free(r);
-  return 1;
-}
-
-/**
- * parse list of ip addresses from list of strings into tree
- */
-int iap_ip_parse_from_str_list(int argc, const char **argv, iap_ip_t **r) {
-  int i;
-  int rc;
-  iap_ip_t a = {0};
-
-  for (i = 0; i < argc; i++) {
-    rc = iap_ip_parse(argv[i], strlen(argv[i]), &a);
-
-    if (!rc)
-      goto _failure;
-
-    if (!iap_insert(r, &a))
-      goto _mem_failure;
-  }
-
-  return 0;
-_mem_failure:
-  iap_free(r);
-  return 2;
-_failure:
-  snprintf(iap_parse_buffer, 255, "invalid address %s.\n", argv[i]);
-  iap_free(r);
-  return 1;
-}
-
-/**
- * return string error for last list parsing
- */
-const char *iap_ip_parse_last_error_str() { return iap_parse_buffer; }
-
-void iap_walk(iap_ip_t *r, void (*proc)(iap_ip_t *a, int mode)) {
-  if (!r)
+static void iap_walk_fast(const iap_t *root, int level, iap_walk_proc_p proc) {
+  if (!root)
     return;
 
-  proc(r, IAP_WALK_PREORDER);
+  proc(root, level, IAP_WALK_PREORDER);
 
-  if (r->l)
-    iap_walk(r->l, proc);
+  if (root->l)
+    iap_walk_fast(root->l, level + 1, proc);
 
-  proc(r, IAP_WALK_INORDER);
+  proc(root, level, IAP_WALK_INORDER);
 
-  if (r->r)
-    iap_walk(r->r, proc);
+  if (root->r)
+    iap_walk_fast(root->r, level + 1, proc);
 
-  proc(r, IAP_WALK_POSTORDER);
+  proc(root, level, IAP_WALK_POSTORDER);
+}
+
+void iap_walk(const iap_t *root, iap_walk_proc_p proc) {
+  iap_walk_fast(root, 0, proc);
 }

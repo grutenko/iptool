@@ -74,26 +74,20 @@ static void error(int code, const char *format, ...) {
   exit(code);
 }
 
-static void list(FILE *o) {
-  int i;
-  for (i = 0; commands[i].name; i++) {
-    fprintf(o, "%s\t\t%s\n", commands[i].name, commands[i].descr);
-  }
-}
-
 static int cmd_parse_option(int argc, const char **argv, struct cmd_opt *opt) {
   return 0;
 }
 
-static struct cmd_opt *opt_find(int cmd_opt_i, struct cmd_opt *opt,
-                                const char *_short, const char *_long) {
-  int i;
-  for (i = 0; i < cmd_opt_i; i++) {
+static struct cmd_opt *opt_find(struct cmd_opt *opt, const char *_short,
+                                const char *_long) {
+  int i = 0;
+  while (opt[i].key) {
     if ((_short && opt[i].key_c == strlen(_short) &&
          strncmp(opt[i].key, _short, opt[i].key_c) == 0) ||
         (_long && opt[i].key_c == strlen(_long) &&
          strncmp(opt[i].key, _long, opt[i].key_c) == 0))
       return &opt[i];
+    i++;
   }
   return (void *)0;
 }
@@ -118,7 +112,7 @@ int main(int argc, const char **argv) {
   }
 
   FILE *out = stdout;
-  struct cmd_opt *output = opt_find(cmd_opt_c, cmd_opts, "o", "output");
+  struct cmd_opt *output = opt_find(cmd_opts, "o", "output");
 
   if (output) {
     char buf[256];
@@ -129,39 +123,62 @@ int main(int argc, const char **argv) {
       error(EXIT_FAILURE, "output file error: %s\n", strerror(errno));
   }
 
-  struct cmd_in cmd_in;
   i = cmd_opt_c + 2;
 
+  iap_t *r = {0};
+  iap_t a = {0};
+
   if (argc - i < 1) {
-    cmd_in.kind = CMD_IN_INPLACE;
-    cmd_in.inplace_len = 0;
-    cmd_in.inplace = (void *)0;
-  } else if (argc - i == 1) {
-    cmd_in.kind = CMD_IN_FILE;
-    if (strcmp(argv[i], "-") == 0)
-      // stdin
-      cmd_in.file = stdin;
-    else if (iap_ip_parse(argv[i], strlen(argv[i]), NULL)) {
-      cmd_in.inplace_len = 1;
-      cmd_in.inplace = &argv[i];
-      cmd_in.kind = CMD_IN_INPLACE;
-    } else {
-      cmd_in.file = fopen(argv[i], "r");
-      if (!cmd_in.file)
-        error(EXIT_FAILURE, "cannot open input file %s: %s.", argv[i],
-              strerror(errno));
-    }
-  } else {
-    cmd_in.kind = CMD_IN_INPLACE;
-    cmd_in.inplace_len = 0;
-
-    cmd_in.inplace = &argv[i];
+    // ...
+  } else if ((argc - i == 1 && iap_aton(argv[i], strlen(argv[i]), NULL)) ||
+             argc - i > 1) {
     for (; i < argc; i++) {
-      if (!iap_ip_parse(argv[i], strlen(argv[i]), NULL))
-        error(EXIT_FAILURE, "invalid address: %s.", argv[i]);
+      if (!iap_aton(argv[i], strlen(argv[i]), &a))
+        error(EXIT_FAILURE, "invalid address: %s", argv[i]);
 
-      cmd_in.inplace_len++;
+      if (!iap_insert(&r, &a))
+        error(EXIT_FAILURE, "memory allocation error.");
     }
+  } else if (argc - i == 1) {
+    FILE *in;
+    // file
+    if (strcmp(argv[i], "-") == 0) {
+      in = stdin;
+    } else {
+      in = fopen(argv[i], "r");
+      if (!in)
+        error(EXIT_FAILURE, "cannot open input file: %s", strerror(errno));
+    }
+
+    int c;
+    char buffer[IAP_BEST_LEN + 1], *buffer_p = buffer;
+    c = getc(in);
+    while (c != EOF) {
+      if ((c >= '0' && c <= '9') || c == '.' || c == '/') {
+        if (buffer_p - buffer >= IAP_BEST_LEN)
+          error(EXIT_FAILURE, "invalid address: %s", buffer);
+
+        *buffer_p++ = c;
+        *buffer_p = '\0';
+      } else if (c == ' ' || c == '\n' || c == ',') {
+        if (buffer_p - buffer > 0) {
+          if (!iap_aton(buffer, buffer_p - buffer, &a))
+            error(EXIT_FAILURE, "invalid address: %s\n", buffer);
+
+          if (!iap_insert(&r, &a))
+            error(EXIT_FAILURE, "memory allocation error.");
+
+          buffer_p = buffer;
+        }
+      } else {
+        error(EXIT_FAILURE, "invalid character: %c\n", c);
+      }
+      c = getc(in);
+    }
+
+    fclose(in);
+  } else {
+    error(EXIT_FAILURE, "invalid address list.");
   }
 
   struct command *cmd = (void *)0;
@@ -173,14 +190,12 @@ int main(int argc, const char **argv) {
 
   int rc = EXIT_SUCCESS;
 
-  struct cmd_data data = {
-      .cmd_opt_c = cmd_opt_c, .cmd_opts = cmd_opts, .in = &cmd_in, .out = out};
-
   if (cmd) {
-    rc = cmd->proc(&data);
+    rc = cmd->proc(&r, out);
   } else {
     help_exit_fmt(EXIT_FAILURE, stdout, "undefined command: %s.", argv[1]);
   }
+  iap_free(&r);
 
   return rc;
 }

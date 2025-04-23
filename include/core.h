@@ -1,18 +1,18 @@
-#ifndef ip_h
-#define ip_h
+#ifndef core_h
+#define core_h
 
 #define IAP_BEST_LEN 19
 
 typedef struct iap {
-  unsigned char a[4];
-  int cidr;
+  unsigned char a[4], cidr;
   struct iap *l, *r; // right
-  int h;
+  int avl_height;
 } iap_t;
 
 enum { IAP_WALK_PREORDER = 0, IAP_WALK_INORDER = 1, IAP_WALK_POSTORDER = 2 };
 
-typedef void (*iap_walk_proc_p)(const iap_t *a, int depth, int mode);
+typedef void (*iap_walk_proc_p)(const iap_t *a, int depth, int mode,
+                                void *data);
 
 /**
  * @brief Return raw subnet mask
@@ -79,16 +79,14 @@ int iap_in(const iap_t *net0, const iap_t *net1);
 /**
  * @brief Compare addresses
  *
- * Compare addresses. if net0 is greater than net1 return 1, if net0 is less
- * than net1 return -1, if net0 is equal to net1 return 0 This is strict
- * comparison. Example: if net0 is 192.168.0.1/24 and net1 is 192.168.0.2/24,
- * return -1.
+ * Compare addresses. Return 1 if net0 address == net1 address and net0 mask ==
+ * net1 mask
  *
  * @param[in] net0 first address
  * @param[in] net1 second address
  * @return int
  */
-int iap_cmp(const iap_t *net0, const iap_t *net1);
+int iap_eq(const iap_t *net0, const iap_t *net1);
 /**
  * @brief Insert address into tree
  *
@@ -97,10 +95,10 @@ int iap_cmp(const iap_t *net0, const iap_t *net1);
  * contain one or many addresses in tree, this address will be remove from tree.
  *
  * @param[in,out] root root of tree
- * @param[in] new address to insert
+ * @param[in] _new address to insert
  * @return iap_t*
  */
-iap_t *iap_insert(iap_t **root, const iap_t *new);
+iap_t *iap_insert(iap_t **root, const iap_t *);
 /**
  * @brief Remove addresses from tree by subnet
  *
@@ -141,9 +139,10 @@ void iap_free(iap_t **root);
  *
  * @param[in] root root of tree
  * @param[in] proc callback function
+ * @param[in] data user data
  * @return void
  */
-void iap_walk(const iap_t *root, iap_walk_proc_p proc);
+void iap_walk(const iap_t *root, iap_walk_proc_p proc, void *data);
 /**
  * @brief Convert address to string
  *

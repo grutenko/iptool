@@ -1,6 +1,7 @@
-#include "ip.h"
+#include "core.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,7 +34,7 @@ static inline int max(int a, int b) { return a > b ? a : b; }
 /**
  * Return AVL height of target node
  */
-static inline int height(iap_t *node) { return node ? node->h : 0; }
+static inline int height(iap_t *node) { return node ? node->avl_height: 0; }
 
 /**
  * Return AVL balance factor for target node
@@ -53,8 +54,8 @@ static inline iap_t *rotl(iap_t *x) {
   y->l = x;
   x->r = T2;
 
-  x->h = max(height(x->l), height(x->r)) + 1;
-  y->h = max(height(y->l), height(y->r)) + 1;
+  x->avl_height= max(height(x->l), height(x->r)) + 1;
+  y->avl_height= max(height(y->l), height(y->r)) + 1;
 
   return y;
 }
@@ -70,8 +71,8 @@ static inline iap_t *rotr(iap_t *y) {
   x->r = y;
   y->l = T2;
 
-  y->h = max(height(y->l), height(y->r)) + 1;
-  x->h = max(height(x->l), height(x->r)) + 1;
+  y->avl_height= max(height(y->l), height(y->r)) + 1;
+  x->avl_height= max(height(x->l), height(x->r)) + 1;
 
   return x;
 }
@@ -270,10 +271,10 @@ _again:
   t = malloc(sizeof(iap_t));
 
   if (!t)
-    return 0;
+    goto _emem;
 
   memmove(t, new, sizeof(iap_t));
-  t->h = 1;
+  t->avl_height= 1;
   t->l = 0;
   t->r = 0;
 
@@ -285,6 +286,9 @@ _again:
     *stack[i] = balance(*stack[i]);
 
   return t;
+_emem:
+  fprintf(stderr, "Out of memory\n");
+  exit(EXIT_FAILURE);
 }
 
 static inline void iap_from_fast(const iap_t *net, iap_t *out) {
@@ -476,23 +480,33 @@ int iap_aton(const char *str, int size, iap_t *out) {
   return p - str;
 }
 
-static void iap_walk_fast(const iap_t *root, int level, iap_walk_proc_p proc) {
+static void iap_walk_fast(const iap_t *root, int level, void *data,
+                          iap_walk_proc_p proc) {
   if (!root)
     return;
 
-  proc(root, level, IAP_WALK_PREORDER);
+  proc(root, level, IAP_WALK_PREORDER, data);
 
   if (root->l)
-    iap_walk_fast(root->l, level + 1, proc);
+    iap_walk_fast(root->l, level + 1, data, proc);
 
-  proc(root, level, IAP_WALK_INORDER);
+  proc(root, level, IAP_WALK_INORDER, data);
 
   if (root->r)
-    iap_walk_fast(root->r, level + 1, proc);
+    iap_walk_fast(root->r, level + 1, data, proc);
 
-  proc(root, level, IAP_WALK_POSTORDER);
+  proc(root, level, IAP_WALK_POSTORDER, data);
 }
 
-void iap_walk(const iap_t *root, iap_walk_proc_p proc) {
-  iap_walk_fast(root, 0, proc);
+void iap_walk(const iap_t *root, iap_walk_proc_p proc, void *data) {
+  iap_walk_fast(root, 0, data, proc);
+}
+
+int iap_eq(const iap_t *net0, const iap_t *net1) {
+  if (!net0 || !net1)
+    return 0;
+  if (net0->cidr != net1->cidr)
+    return 0;
+  return ((iap_raw_fast(net0) & iap_mask(net0->cidr)) ==
+          (iap_raw_fast(net1) & iap_mask(net1->cidr)));
 }

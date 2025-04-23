@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(iap)
+project(iap LANGUAGES C)
 
-add_executable(iap iap.c ip.c proc.c)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+add_executable(iap src/iap.c src/core.c src/proc.c)
+target_include_directories(iap PRIVATE include)
 
 add_custom_target(test
   COMMAND ${CMAKE_COMMAND} -E echo "Running tests..."

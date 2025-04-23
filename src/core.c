@@ -34,7 +34,7 @@ static inline int max(int a, int b) { return a > b ? a : b; }
 /**
  * Return AVL height of target node
  */
-static inline int height(iap_t *node) { return node ? node->avl_height: 0; }
+static inline int height(iap_t *node) { return node ? node->avl_height : 0; }
 
 /**
  * Return AVL balance factor for target node
@@ -54,8 +54,8 @@ static inline iap_t *rotl(iap_t *x) {
   y->l = x;
   x->r = T2;
 
-  x->avl_height= max(height(x->l), height(x->r)) + 1;
-  y->avl_height= max(height(y->l), height(y->r)) + 1;
+  x->avl_height = max(height(x->l), height(x->r)) + 1;
+  y->avl_height = max(height(y->l), height(y->r)) + 1;
 
   return y;
 }
@@ -71,8 +71,8 @@ static inline iap_t *rotr(iap_t *y) {
   x->r = y;
   y->l = T2;
 
-  y->avl_height= max(height(y->l), height(y->r)) + 1;
-  x->avl_height= max(height(x->l), height(x->r)) + 1;
+  y->avl_height = max(height(y->l), height(y->r)) + 1;
+  x->avl_height = max(height(x->l), height(x->r)) + 1;
 
   return x;
 }
@@ -274,7 +274,7 @@ _again:
     goto _emem;
 
   memmove(t, new, sizeof(iap_t));
-  t->avl_height= 1;
+  t->avl_height = 1;
   t->l = 0;
   t->r = 0;
 
@@ -509,4 +509,25 @@ int iap_eq(const iap_t *net0, const iap_t *net1) {
     return 0;
   return ((iap_raw_fast(net0) & iap_mask(net0->cidr)) ==
           (iap_raw_fast(net1) & iap_mask(net1->cidr)));
+}
+
+int iap_range_insert(const iap_t *from, const iap_t *to, iap_t **root) {
+  return 0;
+}
+
+int iap_range_aton(const char *str, int size, iap_t *from, iap_t *to) {
+  char *p = strchr(str, '-');
+  if (!p || p - str >= size)
+    return 0;
+
+  if (!iap_aton(str, p - str, from) || from->cidr != 32)
+    return 0;
+
+  if (!iap_aton(p + 1, size - (p - str + 1), to) || to->cidr != 32)
+    return 0;
+
+  if (iap_raw_fast(from) <= iap_raw_fast(to))
+    return 0;
+
+  return 1;
 }

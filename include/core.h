@@ -178,6 +178,18 @@ int iap_aton(const char *str, int size, iap_t *out);
  * @param[in,out] root root of tree
  * @return return count of inserted addresses or 0 if memory allocation failed
  */
-int iap_range(const iap_t *from, const iap_t *to, iap_t **root);
+int iap_range_insert(const iap_t *from, const iap_t *to, iap_t **root);
+/**
+ * @brief Parse string into range of addressses.
+ *
+ * Parse string into range of addresses.
+ *
+ * @param[in] str input string
+ * @param[in] size size of input string
+ * @param[out] from first address
+ * @param[out] to last address
+ * @return return 1 if success, 0 if failed
+ */
+int iap_range_aton(const char *str, int size, iap_t *from, iap_t *to);
 
 #endif

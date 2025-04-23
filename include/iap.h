@@ -10,6 +10,6 @@
   } while (0)
 
 #define SHORT_USAGE                                                            \
-  "iap command [options] [args]\nUse iap help for more information.\n"
+  "iap <command> [options] [args]. Use iap help for more information.\n"
 
 #endif

@@ -4,7 +4,19 @@ project(iap LANGUAGES C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(iap src/iap.c src/core.c src/cmd.c src/arg.c)
+add_executable(iap src/iap.c
+                   src/core.c
+                   src/cmd.c
+                   src/arg.c
+                   src/commands/deflate.c
+                   src/commands/diff.c
+                   src/commands/filter.c
+                   src/commands/help.c
+                   src/commands/inflate.c
+                   src/commands/invert.c
+                   src/commands/list.c
+                   src/commands/lookup.c
+)
 target_include_directories(iap PRIVATE include)
 
 add_custom_target(test

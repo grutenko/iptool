@@ -2,6 +2,7 @@
 #include "core.h"
 
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,115 +30,85 @@ struct cmd_struct *find_cmd(const char *name) {
 
 struct cmd_struct *list_cmd() { return commands; }
 
+static void parse_fail(iap_t **root, const char *msg, ...) {
+  va_list va;
+  va_start(va, msg);
+  fwrite("Error: ", strlen("Error: "), 1, stderr);
+  vfprintf(stderr, msg, va);
+  va_end(va);
+  iap_free(root);
+  putc('\n', stderr);
+  exit(EXIT_FAILURE);
+}
+
+static void parse_token(iap_t **root, const char *str) {
+  iap_t a = {0}, b = {0};
+  if (iap_aton(str, strlen(str), &a) > 0) {
+    if (iap_insert(root, &a) == 0)
+      parse_fail(root, "failed to allocate memory");
+  } else if (iap_range_aton(str, strlen(str), &a, &b) > 0) {
+    if (iap_range_insert(&a, &b, root) == 0)
+      parse_fail(root, "failed to allocate memory");
+  } else {
+    parse_fail(root, "failed to parse input: %s", str);
+  }
+}
+
 void parse_ips(int argc, char **argv, iap_t **root) {
   // Implementation of the parse_ips function
   if (argc == 0)
     return;
 
   FILE *in = stdin;
-  iap_t a = {0}, b = {0};
   char buffer[256] = {0}, *buffer_p = buffer;
   int c, i;
+  const char *ipchars = "0123456789./-";
+  const char *delimiters = " ,\t\r\n";
 
   if (argc == 1) {
     strncpy(buffer, argv[0], sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
 
-    if (strlen(argv[0]) > 1 && argv[0][0] == '@') {
+    if (argv[0][0] == '@' && strlen(argv[0]) > 1) {
       // file
       in = fopen(argv[0] + 1, "r");
       if (!in)
-        goto _io_error;
+        parse_fail(root, "failed to open file '%s': %s", buffer,
+                   strerror(errno));
     } else if (strcmp(argv[0], "-") == 0) {
       // stdin
       ;
-    } else if (iap_aton(argv[0], strlen(argv[0]), NULL) > 0) {
-      strncpy(buffer, argv[0], sizeof(buffer) - 1);
-      // ip address
-      iap_aton(argv[0], strlen(argv[0]), &a);
-
-      if (iap_insert(root, &a) == 0)
-        goto _mem_failure;
-
-      return;
-    } else if (iap_range_aton(argv[0], strlen(argv[0]), NULL, NULL) > 0) {
-      // ip range
-      iap_range_aton(argv[0], strlen(argv[0]), &a, &b);
-
-      if (iap_range_insert(&a, &b, root) == 0)
-        goto _mem_failure;
-
+    } else if (iap_aton(argv[0], strlen(argv[0]), NULL) > 0 ||
+               iap_range_aton(argv[0], strlen(argv[0]), NULL, NULL) > 0) {
+      parse_token(root, buffer);
       return;
     } else {
-      goto _parse_error;
+      parse_fail(root, "failed to parse input: %s\n", buffer);
     }
-
     c = fgetc(in);
     while (c != EOF) {
-      if (strchr("0123456789./-", c)) {
+      if (strchr(ipchars, c)) {
         if (buffer_p - buffer >= sizeof(buffer) - 1)
-          goto _parse_error;
-
+          parse_fail(root, "failed to parse input: %s", buffer);
         *buffer_p++ = c;
-      } else if (strchr(" ,\t\r\n", c)) {
         *buffer_p = '\0';
-
-        if (iap_aton(buffer, buffer_p - buffer, &a) > 0) {
-          if (iap_insert(root, &a) == 0)
-            goto _mem_failure;
-        } else if (iap_range_aton(buffer, buffer_p - buffer, &a, &b) > 0) {
-          if (iap_range_insert(&a, &b, root) == 0)
-            goto _mem_failure;
-        } else {
-          goto _parse_error;
-        }
-
+      } else if (strchr(delimiters, c)) {
+        parse_token(root, buffer);
         buffer_p = buffer;
       } else {
-        goto _invalid_char;
+        parse_fail(root, "invalid character: %c", c);
       }
-
       c = fgetc(in);
     }
-
     if (in != stdin) {
       fclose(in);
     }
   } else {
     for (i = 0; i < argc; i++) {
       strncpy(buffer, argv[i], sizeof(buffer) - 1);
+      buffer[sizeof(buffer) - 1] = '\0';
       // ip range
-      if (iap_range_aton(argv[i], strlen(argv[i]), &a, &b) > 0) {
-
-        if (iap_range_insert(&a, &b, root) == 0)
-          goto _mem_failure;
-
-      } else if (iap_aton(argv[i], strlen(argv[i]), &a) > 0) {
-
-        if (iap_insert(root, &a) == 0)
-          goto _mem_failure;
-
-      } else {
-        goto _parse_error;
-      }
+      parse_token(root, buffer);
     }
   }
-
-  return;
-_io_error:
-  fprintf(stderr, "Error: Failed to open file '%s'. %s\n", argv[0] + 1,
-          strerror(errno));
-  iap_free(root);
-  exit(EXIT_FAILURE);
-_parse_error:
-  fprintf(stderr, "Error: Failed to parse input: %s\n", buffer);
-  iap_free(root);
-  exit(EXIT_FAILURE);
-_mem_failure:
-  fprintf(stderr, "Error: Failed to allocate memory\n");
-  iap_free(root);
-  exit(EXIT_FAILURE);
-_invalid_char:
-  fprintf(stderr, "Error: Invalid character '%c' in input\n", c);
-  iap_free(root);
-  exit(EXIT_FAILURE);
 }

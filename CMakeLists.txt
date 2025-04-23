@@ -4,7 +4,7 @@ project(iap LANGUAGES C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(iap src/iap.c src/core.c src/proc.c)
+add_executable(iap src/iap.c src/core.c src/cmd.c src/arg.c)
 target_include_directories(iap PRIVATE include)
 
 add_custom_target(test

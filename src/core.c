@@ -526,7 +526,7 @@ int iap_range_aton(const char *str, int size, iap_t *from, iap_t *to) {
   if (!iap_aton(p + 1, size - (p - str + 1), to) || to->cidr != 32)
     return 0;
 
-  if (iap_raw_fast(from) <= iap_raw_fast(to))
+  if (iap_raw_fast(from) > iap_raw_fast(to))
     return 0;
 
   return 1;

@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  volatile struct cmd_struct *cmd = find_cmd(argv[1]);
+  struct cmd_struct *cmd = find_cmd(argv[1]);
   int rc;
 
   if (cmd) {
